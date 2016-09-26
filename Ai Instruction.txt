@@ -1,0 +1,19 @@
+Heist is a stealth based game, hvere you take on the role of a master burgler. You are no phsyco, you cannot kill. At most you can knock people out. If you are discovered by anybody, you are in deep trouble. Use the environment to you advantage. Depending on what gear you choose, you can have different aproaches.
+
+
+
+
+Oscar
+
+The Ai is a guard ai. It needs to be able to have a patrol path. Nodes to set this up will do. 
+
+If the Ai discovers you it will try to shoot or arrest you. If you slip away, it will look for you from where it last saw you. 
+
+The Ai can discorer you by sound. If it hears something, it will investegate. The player will make different amounts of sound depending on what surface you walk on and what gear you have. 
+
+The Ai can discover you by sight. If it sees you it will try to arrest you, if you run. It will atack. If it has a gun, ut will fire a warning shot before it tries wo shoot you for real. 
+
+If the Ai has disovered you, it can comunicate your position to other guard. However this will take "x" time and will stand still while doing it. If the player knocks out the ai in this time, the alert will be canceled. 
+
+In the patrol behavior, the ai will stand still and check in ever "x" seconds. If it is time to check in, and the ai don't for some reason, it will alert other ai. 
+
