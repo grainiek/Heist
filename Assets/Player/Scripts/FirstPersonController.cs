@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using UnityStandardAssets.CrossPlatformInput;
 using UnityStandardAssets.Utility;
+using UnityEngine.Events;
 using Random = UnityEngine.Random;
 
 namespace UnityStandardAssets.Characters.FirstPerson
@@ -11,8 +12,11 @@ namespace UnityStandardAssets.Characters.FirstPerson
     public class FirstPersonController : MonoBehaviour
     {
         [SerializeField] private bool m_IsWalking;
-        [SerializeField] private float m_WalkSpeed;
+        [SerializeField] private bool m_IsCrouching;
+        [SerializeField] public float m_WalkSpeed;
         [SerializeField] private float m_RunSpeed;
+        [SerializeField] private float m_CrouchSpeed;
+        [SerializeField] private float m_ChrouchTransitionSpeed;
         [SerializeField] [Range(0f, 1f)] private float m_RunstepLenghten;
         [SerializeField] private float m_JumpSpeed;
         [SerializeField] private float m_StickToGroundForce;
@@ -24,7 +28,7 @@ namespace UnityStandardAssets.Characters.FirstPerson
         [SerializeField] private CurveControlledBob m_HeadBob = new CurveControlledBob();
         [SerializeField] private LerpControlledBob m_JumpBob = new LerpControlledBob();
         [SerializeField] private float m_StepInterval;
-        [SerializeField] private AudioClip[] m_FootstepSounds;    // an array of footstep sounds that will be randomly selected from.
+        //[SerializeField] private AudioClip[] m_FootstepSounds;    // an array of footstep sounds that will be randomly selected from.
         [SerializeField] private AudioClip m_JumpSound;           // the sound played when character leaves the ground.
         [SerializeField] private AudioClip m_LandSound;           // the sound played when character touches back on ground.
 
@@ -41,10 +45,21 @@ namespace UnityStandardAssets.Characters.FirstPerson
         private float m_NextStep;
         private bool m_Jumping;
         private AudioSource m_AudioSource;
+        private Vector3 m_CurrentLocalCamPos;
+        private UnityAction playerInteractingListener;
+        
+
+        public float speed;
+        public bool m_interacting = false;
 
         // Use this for initialization
+        void Awake()
+        {
+            playerInteractingListener = new UnityAction(PlayerInteracting);
+        }
         private void Start()
         {
+            EventManager.StartListening("PlayerStartInteract", playerInteractingListener);
             m_CharacterController = GetComponent<CharacterController>();
             m_Camera = Camera.main;
             m_OriginalCameraPosition = m_Camera.transform.localPosition;
@@ -55,13 +70,19 @@ namespace UnityStandardAssets.Characters.FirstPerson
             m_Jumping = false;
             m_AudioSource = GetComponent<AudioSource>();
 			m_MouseLook.Init(transform , m_Camera.transform);
+            m_CurrentLocalCamPos = m_Camera.transform.localPosition;
         }
 
 
         // Update is called once per frame
         private void Update()
         {
+            if (m_interacting == true && CrossPlatformInputManager.GetButtonDown("Cancel"))
+            {
+                m_interacting = false;
+            }
             RotateView();
+            CheckCrouch();
             // the jump state needs to read here to make sure it is not missed
             if (!m_Jump)
             {
@@ -80,21 +101,36 @@ namespace UnityStandardAssets.Characters.FirstPerson
                 m_MoveDir.y = 0f;
             }
 
-            m_PreviouslyGrounded = m_CharacterController.isGrounded;
+            m_PreviouslyGrounded = m_CharacterController.isGrounded;            
         }
 
+        private void CheckCrouch ()
+        {
+            if (CrossPlatformInputManager.GetButtonDown("Crouch"))
+            {
+              m_IsCrouching = !m_IsCrouching;
+            }
+            if (CrossPlatformInputManager.GetButtonDown("Sprint") && m_IsCrouching) { m_IsCrouching = !m_IsCrouching; }
+        }
 
         private void PlayLandingSound()
         {
-            m_AudioSource.clip = m_LandSound;
-            m_AudioSource.Play();
-            m_NextStep = m_StepCycle + .5f;
+            //m_AudioSource.clip = m_LandSound;
+            //m_AudioSource.Play();
+            //m_NextStep = m_StepCycle + .5f;
+            GetComponent<CreateSoundSource>().soundState = 2f;
+            GetComponent<CreateSoundSource>().CreateSoundCollider();
+            
         }
 
 
         private void FixedUpdate()
         {
-            float speed;
+            if (m_interacting)
+            {
+                return;
+            }
+            //float speed;
             GetInput(out speed);
             // always move along the camera forward as it is the direction that it being aimed at
             Vector3 desiredMove = transform.forward*m_Input.y + transform.right*m_Input.x;
@@ -166,22 +202,40 @@ namespace UnityStandardAssets.Characters.FirstPerson
             {
                 return;
             }
-            // pick & play a random footstep sound from the array,
-            // excluding sound at index 0
-            int n = Random.Range(1, m_FootstepSounds.Length);
-            m_AudioSource.clip = m_FootstepSounds[n];
-            m_AudioSource.PlayOneShot(m_AudioSource.clip);
-            // move picked sound to index 0 so it's not picked next time
-            m_FootstepSounds[n] = m_FootstepSounds[0];
-            m_FootstepSounds[0] = m_AudioSource.clip;
+
+            GetComponent<CreateSoundSource>().soundState = 1f;
+            GetComponent<CreateSoundSource>().CreateSoundCollider();            
         }
 
 
         private void UpdateCameraPosition(float speed)
         {
             Vector3 newCameraPosition;
+            if (!m_IsCrouching)
+            {
+                if (m_CurrentLocalCamPos.y > 0)
+                {
+                    m_CurrentLocalCamPos.y = m_CurrentLocalCamPos.y - m_ChrouchTransitionSpeed;
+                }
+                if (m_CurrentLocalCamPos.y < 0)
+                {
+                    m_CurrentLocalCamPos.y = 0;
+                }
+            }
+            if (m_IsCrouching)
+            {
+                if (m_CurrentLocalCamPos.y < 0.8f)
+                {
+                    m_CurrentLocalCamPos.y = m_CurrentLocalCamPos.y + m_ChrouchTransitionSpeed;
+                }
+                if (m_CurrentLocalCamPos.y > 0.8f)
+                {
+                    m_CurrentLocalCamPos.y = 0.8f;
+                }
+            }
             if (!m_UseHeadBob)
             {
+                m_Camera.transform.localPosition = m_CurrentLocalCamPos;
                 return;
             }
             if (m_CharacterController.velocity.magnitude > 0 && m_CharacterController.isGrounded)
@@ -190,12 +244,14 @@ namespace UnityStandardAssets.Characters.FirstPerson
                     m_HeadBob.DoHeadBob(m_CharacterController.velocity.magnitude +
                                       (speed*(m_IsWalking ? 1f : m_RunstepLenghten)));
                 newCameraPosition = m_Camera.transform.localPosition;
-                newCameraPosition.y = m_Camera.transform.localPosition.y - m_JumpBob.Offset();
+                newCameraPosition.y = m_Camera.transform.localPosition.y - m_JumpBob.Offset() - m_CurrentLocalCamPos.y;
+                //newCameraPosition.y = m_CurrentLocalCamPos.y - m_JumpBob.Offset();
             }
             else
             {
                 newCameraPosition = m_Camera.transform.localPosition;
-                newCameraPosition.y = m_OriginalCameraPosition.y - m_JumpBob.Offset();
+                newCameraPosition.y = m_OriginalCameraPosition.y - m_JumpBob.Offset() - m_CurrentLocalCamPos.y;
+                //newCameraPosition.y = m_CurrentLocalCamPos.y - m_JumpBob.Offset();
             }
             m_Camera.transform.localPosition = newCameraPosition;
         }
@@ -203,6 +259,11 @@ namespace UnityStandardAssets.Characters.FirstPerson
 
         private void GetInput(out float speed)
         {
+            if (m_interacting == true)
+            {
+                speed = 0;
+                return;
+            }
             // Read input
             float horizontal = CrossPlatformInputManager.GetAxis("Horizontal");
             float vertical = CrossPlatformInputManager.GetAxis("Vertical");
@@ -212,10 +273,11 @@ namespace UnityStandardAssets.Characters.FirstPerson
 #if !MOBILE_INPUT
             // On standalone builds, walk/run speed is modified by a key press.
             // keep track of whether or not the character is walking or running
-            m_IsWalking = !Input.GetKey(KeyCode.LeftShift);
+            m_IsWalking = !CrossPlatformInputManager.GetButton("Sprint");
 #endif
             // set the desired speed to be walking or running
             speed = m_IsWalking ? m_WalkSpeed : m_RunSpeed;
+            if (m_IsCrouching) { speed = speed * m_CrouchSpeed; }
             m_Input = new Vector2(horizontal, vertical);
 
             // normalize input if it exceeds 1 in combined length:
@@ -236,6 +298,10 @@ namespace UnityStandardAssets.Characters.FirstPerson
 
         private void RotateView()
         {
+            if (m_interacting)
+            {
+                return;
+            }
             m_MouseLook.LookRotation (transform, m_Camera.transform);
         }
 
@@ -254,6 +320,10 @@ namespace UnityStandardAssets.Characters.FirstPerson
                 return;
             }
             body.AddForceAtPosition(m_CharacterController.velocity*0.1f, hit.point, ForceMode.Impulse);
+        }
+        private void PlayerInteracting()
+        {
+            m_interacting = true;
         }
     }
 }

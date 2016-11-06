@@ -5,9 +5,9 @@ public class LightColisionDetection : MonoBehaviour {
 
     public float colRange = 0;
     public float colSunHit;
-    public Light[] lightArray;
-    public GameObject sunLight;
-    public int n = 0;
+    private Light[] lightArray;
+    private GameObject sunLight;
+    private int n = 0;
     public LayerMask layerMask;
     public GameObject amountVisualizer; 
 
@@ -47,8 +47,7 @@ public class LightColisionDetection : MonoBehaviour {
                 {
                     if ((((colLight.range - dist) / colLight.range)) > 0)
                     {
-                        colRange = colRange + (Mathf.Pow(((colLight.range - dist) / colLight.range), 2.3f) * (colLight.intensity));
-                        
+                        colRange = colRange + (Mathf.Pow(((colLight.range - dist) / colLight.range), 2.3f) * (colLight.intensity)); 
                     }
                 }
             }
